@@ -37,7 +37,6 @@ int jetProjection(const std::string inFileName)
   double remainingFrac = 0;
   if(centBinsHigh[nCentBins-1] != 100) remainingFrac = findNCollFrac_Cent(centBinsHigh[nCentBins-1], 100);
 
-
   std::cout << "Tot frac, remaining: " << totFrac << ", " << remainingFrac << std::endl;
   
   const Double_t pbANucleons = 208;
@@ -66,15 +65,9 @@ int jetProjection(const std::string inFileName)
 
   TH1F* proj_Weight_Cent_p[nCentBins];
   TH1F* proj_Weight_Cent_TAA_p[nCentBins];
-  TH1F* proj_Weight_Cent_Rebin_p[nCentBins];
-  Int_t nValidBins[nCentBins];
-
   
   for(Int_t iter = 0; iter < nCentBins; ++iter){
-    nValidBins[iter] = 0;
-
     const std::string name = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_h";
-
     const std::string nameTAA = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_TAA_h";
     
     proj_Weight_Cent_p[iter] = new TH1F(name.c_str(), ";Jet p_{T} [GeV/c];#frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta} [1/(GeV/c)]", nBins, bins);
@@ -171,37 +164,11 @@ int jetProjection(const std::string inFileName)
 
     for(int binIter = 0; binIter < proj_Weight_Cent_p[cIter]->GetNbinsX(); ++binIter){
       if(proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1) < 1){
-	if(nValidBins[cIter] == 0) nValidBins[cIter] = binIter;
-	//	proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, 0);
-	//	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, 0);
+	proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, 0);
+	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, 0);
       }
       else{
 	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, TMath::Sqrt(proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1)));
-      }
-    }
-
-    const std::string name = "proj_Weight_Cent" + std::to_string((int)centBinsLow[cIter]) + "to" + std::to_string((int)centBinsHigh[cIter]) + "_Rebin_h";
-
-    const int tempNBins = nValidBins[cIter];
-    Double_t tempBins[tempNBins+1];
-    for(Int_t i = 0; i < tempNBins; ++i){
-      tempBins[i] = bins[i];
-    }
-    tempBins[tempNBins] = jtPtHigh;
-
-    proj_Weight_Cent_Rebin_p[cIter] = new TH1F(name.c_str(), ";Jet p_{T} (GeV/c);#frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta}", tempNBins, tempBins);
-
-    for(int binIter = 0; binIter < proj_Weight_Cent_p[cIter]->GetNbinsX(); ++binIter){
-      if(binIter < nValidBins[cIter]){
-	proj_Weight_Cent_Rebin_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1));
-	proj_Weight_Cent_Rebin_p[cIter]->SetBinError(binIter+1, TMath::Sqrt(proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1)));
-      }
-      else{
-	proj_Weight_Cent_Rebin_p[cIter]->SetBinContent(nValidBins[cIter], proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1) + proj_Weight_Cent_Rebin_p[cIter]->GetBinContent(nValidBins[cIter]));
-	proj_Weight_Cent_Rebin_p[cIter]->SetBinError(nValidBins[cIter], TMath::Sqrt(proj_Weight_Cent_Rebin_p[cIter]->GetBinContent(nValidBins[cIter])));
-
-	proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, 0);
-	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, 0);
       }
     }
 
@@ -210,14 +177,7 @@ int jetProjection(const std::string inFileName)
       proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1)/proj_Weight_Cent_p[cIter]->GetBinWidth(binIter+1));
       proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_p[cIter]->GetBinError(binIter+1)/proj_Weight_Cent_p[cIter]->GetBinWidth(binIter+1));
     }
-
-    proj_Weight_Cent_Rebin_p[cIter]->Scale(1./(2.*etaCut*xsectionTotal*10.*(centBinsHigh[cIter]-centBinsLow[cIter])/100));
-    for(int binIter = 0; binIter < proj_Weight_Cent_Rebin_p[cIter]->GetNbinsX(); ++binIter){
-      proj_Weight_Cent_Rebin_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_Rebin_p[cIter]->GetBinContent(binIter+1)/proj_Weight_Cent_Rebin_p[cIter]->GetBinWidth(binIter+1));
-      proj_Weight_Cent_Rebin_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_Rebin_p[cIter]->GetBinError(binIter+1)/proj_Weight_Cent_Rebin_p[cIter]->GetBinWidth(binIter+1));
-    }
   }
-
 
   proj_NoWeight_p->Scale(1./(2.*etaCut*xsectionTotal*10.));
   proj_Weight_p->Scale(1./(2.*etaCut*xsectionTotal));
@@ -254,9 +214,6 @@ int jetProjection(const std::string inFileName)
 
     proj_Weight_Cent_TAA_p[cIter]->Write("", TObject::kOverwrite);
     delete  proj_Weight_Cent_TAA_p[cIter];
-
-    proj_Weight_Cent_Rebin_p[cIter]->Write("", TObject::kOverwrite);
-    delete  proj_Weight_Cent_Rebin_p[cIter];
   }
 
   outFile_p->Close();
