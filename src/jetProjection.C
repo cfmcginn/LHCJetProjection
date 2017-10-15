@@ -19,7 +19,7 @@ int jetProjection(const std::string inFileName)
 
   const Int_t nPthat = 3;
   Float_t pthats[nPthat+1] = {50., 200., 500., 100000.};
-  Float_t weights[nPthat] = {1., .00632675, .00632675*.00349246};
+  Float_t weights[nPthat] = {1., .00632675, .00632675*.00349246}; //Weights derived by fitting the ratio of the two pthat spectra divided with a flat line (consistent with pthat weighting from cross sections within 1 %)
 
   const Int_t nCentBins = 5;
   const Double_t centBinsLow[nCentBins] = {0,5,10,30,50};
@@ -33,17 +33,21 @@ int jetProjection(const std::string inFileName)
     centNCollFrac[cIter] = findNCollFrac_Cent(centBinsLow[cIter], centBinsHigh[cIter]);
     totFrac += centNCollFrac[cIter];
   }
-
+  
+  //deriving the fraction of ncoll in a centrality bin to find the hard probes in each bin from the total
   double remainingFrac = 0;
   if(centBinsHigh[nCentBins-1] != 100) remainingFrac = findNCollFrac_Cent(centBinsHigh[nCentBins-1], 100);
 
   std::cout << "Tot frac, remaining: " << totFrac << ", " << remainingFrac << std::endl;
   
-  const Double_t pbANucleons = 208;
-  const Double_t xsection100Jets = 413.; //http://www.hep.ph.ic.ac.uk/~wstirlin/plots/crosssections2013.jpg
-  const Double_t xsectionTotal = 7700000000.;
-  //const Double_t xsection100Jets = 100.; //http://www.hep.ph.ic.ac.uk/~wstirlin/plots/crosssections2013.jpg
-  const Double_t etaCut = 2.8;
+  const Double_t pbANucleons = 208; //nucleons for pbpb
+  const Double_t xsection100Jets = 205.9146842;//PYTHIA pthat50 x-section * fraction w/ jets > 100 from 75 million pthat50 events in pythia6 and a 10k pythia6 x-section
+  const Double_t xsectionTotal = 7700000000.; //5.02 tev pbpb mb cross section
+  const Double_t etaCut = 2.8; //eta cut to match atlas
+
+  //integrated luminosity
+  const Double_t tenInverseNB = 10.;
+  const Double_t halfInverseNB = 0.5;  
 
   Double_t pbpbCentXSect[nCentBins];
   for(int cIter = 0; cIter < nCentBins; ++cIter){
@@ -52,8 +56,8 @@ int jetProjection(const std::string inFileName)
   }
 
   TFile* outFile_p = new TFile("output/proj.root", "RECREATE");
-  const Float_t jtPtLow = 100;
-  const Float_t jtPtHigh = 1400;
+  const Float_t jtPtLow = 100;//pt low
+  const Float_t jtPtHigh = 1400;//pt high
   const Int_t nBins = 14;
   Double_t bins[nBins+1];
   getLogBins(jtPtLow, jtPtHigh, nBins, bins);
@@ -64,17 +68,25 @@ int jetProjection(const std::string inFileName)
   proj_Weight_p->Sumw2();
 
   TH1F* proj_Weight_Cent_p[nCentBins];
+  TH1F* proj_Weight_Cent_0p5_p[nCentBins];
   TH1F* proj_Weight_Cent_TAA_p[nCentBins];
+  TH1F* proj_Weight_Cent_TAA_0p5_p[nCentBins];
   
   for(Int_t iter = 0; iter < nCentBins; ++iter){
     const std::string name = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_h";
+    const std::string name0p5 = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_0p5_h";
     const std::string nameTAA = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_TAA_h";
+    const std::string nameTAA0p5 = "proj_Weight_Cent" + std::to_string((int)centBinsLow[iter]) + "to" + std::to_string((int)centBinsHigh[iter]) + "_TAA_0p5_h";
     
     proj_Weight_Cent_p[iter] = new TH1F(name.c_str(), ";Jet p_{T} [GeV/c];#frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta} [1/(GeV/c)]", nBins, bins);
+    proj_Weight_Cent_0p5_p[iter] = new TH1F(name0p5.c_str(), ";Jet p_{T} [GeV/c];#frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta} [1/(GeV/c)]", nBins, bins);
     proj_Weight_Cent_TAA_p[iter] = new TH1F(nameTAA.c_str(), ";Jet p_{T} [GeV/c];#frac{1}{#LTTAA#GT} #frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta} [nb/(GeV/c)]", nBins, bins);
+    proj_Weight_Cent_TAA_0p5_p[iter] = new TH1F(nameTAA0p5.c_str(), ";Jet p_{T} [GeV/c];#frac{1}{#LTTAA#GT} #frac{1}{N_{evt}} #frac{d^{2}N_{jet}}{dp_{T}d#eta} [nb/(GeV/c)]", nBins, bins);
 
     proj_Weight_Cent_p[iter]->Sumw2();
+    proj_Weight_Cent_0p5_p[iter]->Sumw2();
     proj_Weight_Cent_TAA_p[iter]->Sumw2();
+    proj_Weight_Cent_TAA_0p5_p[iter]->Sumw2();
   }
   std::vector<std::string> fileList;
   if(inFileName.substr(inFileName.size()-5, 5).find(".root") != std::string::npos) fileList.push_back(inFileName);
@@ -143,6 +155,7 @@ int jetProjection(const std::string inFileName)
 
 	for(int cIter = 0; cIter < nCentBins; ++cIter){
 	  proj_Weight_Cent_p[cIter]->Fill(genpt_[gI], weights[pthatPos]);
+	  proj_Weight_Cent_0p5_p[cIter]->Fill(genpt_[gI], weights[pthatPos]);
 	}
       } 
     }
@@ -160,26 +173,44 @@ int jetProjection(const std::string inFileName)
 
 
   for(int cIter = 0; cIter < nCentBins; ++cIter){
-    proj_Weight_Cent_p[cIter]->Scale(rAAFactor*pbpbCentXSect[cIter]*10./proj_Weight_Cent_p[cIter]->Integral());
+    //Scale up to the number of jets found
+    proj_Weight_Cent_p[cIter]->Scale(rAAFactor*pbpbCentXSect[cIter]*tenInverseNB/proj_Weight_Cent_p[cIter]->Integral());
+    proj_Weight_Cent_0p5_p[cIter]->Scale(rAAFactor*pbpbCentXSect[cIter]*halfInverseNB/proj_Weight_Cent_0p5_p[cIter]->Integral());
 
     for(int binIter = 0; binIter < proj_Weight_Cent_p[cIter]->GetNbinsX(); ++binIter){
       if(proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1) < 1){
+	//zero the values that are less than integer
 	proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, 0);
 	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, 0);
       }
       else{
 	proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, TMath::Sqrt(proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1)));
       }
+
+      if(proj_Weight_Cent_0p5_p[cIter]->GetBinContent(binIter+1) < 1){
+	proj_Weight_Cent_0p5_p[cIter]->SetBinContent(binIter+1, 0);
+	proj_Weight_Cent_0p5_p[cIter]->SetBinError(binIter+1, 0);
+      }
+      else{
+	proj_Weight_Cent_0p5_p[cIter]->SetBinError(binIter+1, TMath::Sqrt(proj_Weight_Cent_0p5_p[cIter]->GetBinContent(binIter+1)));
+      }
     }
 
-    proj_Weight_Cent_p[cIter]->Scale(1./(2.*etaCut*xsectionTotal*10.*(centBinsHigh[cIter]-centBinsLow[cIter])/100));
+    //Divide by eta range, x-section MB * times integrated luminosity * centrality range
+    proj_Weight_Cent_p[cIter]->Scale(1./(2.*etaCut*xsectionTotal*tenInverseNB*(centBinsHigh[cIter]-centBinsLow[cIter])/100));
+    proj_Weight_Cent_0p5_p[cIter]->Scale(1./(2.*etaCut*xsectionTotal*halfInverseNB*(centBinsHigh[cIter]-centBinsLow[cIter])/100));
+
+    //Divide by binwidth
     for(int binIter = 0; binIter < proj_Weight_Cent_p[cIter]->GetNbinsX(); ++binIter){
       proj_Weight_Cent_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1)/proj_Weight_Cent_p[cIter]->GetBinWidth(binIter+1));
       proj_Weight_Cent_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_p[cIter]->GetBinError(binIter+1)/proj_Weight_Cent_p[cIter]->GetBinWidth(binIter+1));
+
+      proj_Weight_Cent_0p5_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_0p5_p[cIter]->GetBinContent(binIter+1)/proj_Weight_Cent_0p5_p[cIter]->GetBinWidth(binIter+1));
+      proj_Weight_Cent_0p5_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_0p5_p[cIter]->GetBinError(binIter+1)/proj_Weight_Cent_0p5_p[cIter]->GetBinWidth(binIter+1));
     }
   }
 
-  proj_NoWeight_p->Scale(1./(2.*etaCut*xsectionTotal*10.));
+  proj_NoWeight_p->Scale(1./(2.*etaCut*xsectionTotal*tenInverseNB));
   proj_Weight_p->Scale(1./(2.*etaCut*xsectionTotal));
 
   for(Int_t bI = 0; bI < proj_NoWeight_p->GetNbinsX(); ++bI){
@@ -202,9 +233,14 @@ int jetProjection(const std::string inFileName)
     for(int binIter = 0; binIter < proj_Weight_Cent_TAA_p[cIter]->GetNbinsX(); ++binIter){
       proj_Weight_Cent_TAA_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_p[cIter]->GetBinContent(binIter+1));
       proj_Weight_Cent_TAA_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_p[cIter]->GetBinError(binIter+1));
+
+      proj_Weight_Cent_TAA_0p5_p[cIter]->SetBinContent(binIter+1, proj_Weight_Cent_0p5_p[cIter]->GetBinContent(binIter+1));
+      proj_Weight_Cent_TAA_0p5_p[cIter]->SetBinError(binIter+1, proj_Weight_Cent_0p5_p[cIter]->GetBinError(binIter+1));
     }
 
+    //Divide by TAA scaled up to nano-barns (1000000)
     proj_Weight_Cent_TAA_p[cIter]->Scale(1000000./getTAA(centBinsLow[cIter], centBinsHigh[cIter]));
+    proj_Weight_Cent_TAA_0p5_p[cIter]->Scale(1000000./getTAA(centBinsLow[cIter], centBinsHigh[cIter]));
   }
 
 
@@ -212,8 +248,14 @@ int jetProjection(const std::string inFileName)
     proj_Weight_Cent_p[cIter]->Write("", TObject::kOverwrite);
     delete  proj_Weight_Cent_p[cIter];
 
+    proj_Weight_Cent_0p5_p[cIter]->Write("", TObject::kOverwrite);
+    delete  proj_Weight_Cent_0p5_p[cIter];
+
     proj_Weight_Cent_TAA_p[cIter]->Write("", TObject::kOverwrite);
     delete  proj_Weight_Cent_TAA_p[cIter];
+
+    proj_Weight_Cent_TAA_0p5_p[cIter]->Write("", TObject::kOverwrite);
+    delete  proj_Weight_Cent_TAA_0p5_p[cIter];
   }
 
   outFile_p->Close();
